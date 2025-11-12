@@ -27,30 +27,52 @@ exports_files(glob(
 
 ## LLVM toolchain files
 
+ALL_DLLS = glob(["bin/*.dll"], allow_empty=True)
+
 filegroup(
     name = "clang",
-    srcs = [
-        "bin/clang",
-        "bin/clang++",
-        "bin/clang-cpp",
-    ],
+    srcs = select({{
+       # TODO: does not work for cross-compilation, must be changed
+       "@platforms//os:windows": [
+           "bin/clang.exe",
+           "bin/clang++.exe",
+           "bin/clang-cpp.exe",
+           "bin/clang-cl.exe",
+       ] + ALL_DLLS,
+       "//conditions:default": [
+           "bin/clang",
+           "bin/clang++",
+           "bin/clang-cpp",
+           "bin/clang-cl",
+       ],
+   }}),
 )
 
 filegroup(
     name = "ld",
     # Not all distributions contain wasm-ld.
-    srcs = [
-        "bin/ld.lld",
-        "bin/ld64.lld",
-    ] + glob(["bin/wasm-ld"], allow_empty = True),
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/ld.lld.exe",
+            "bin/ld64.lld.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/ld.lld",
+            "bin/ld64.lld",
+        ] + glob(["bin/wasm-ld"], allow_empty = True),
+    }}),
 )
 
 filegroup(
     name = "include",
-    srcs = glob([
-        "include/**/c++/**",
-        "lib/clang/*/include/**",
-    ]),
+    srcs = glob(
+        [
+            "include/**/c++/**",
+            "lib/clang/*/include/**",
+        ],
+        allow_empty = True, # empty in Windows distributions
+    ),
 )
 
 filegroup(
@@ -88,10 +110,14 @@ filegroup(
         # not be available at runtime to allow sanitizers to work locally.
         # Any library linked from the toolchain to be released should be linked statically.
         "lib/clang/{LLVM_VERSION}/lib",
-    ] + glob([
-        "lib/**/libc++*.a",
-        "lib/**/libunwind.a",
-    ]),
+    ] + select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [],
+        "//conditions:default": glob([
+            "lib/**/libc++*.a",
+            "lib/**/libunwind.a",
+        ], allow_empty = True),
+    }}),
 )
 
 filegroup(
@@ -103,80 +129,191 @@ filegroup(
         "lib/clang/{LLVM_VERSION}/lib/**",
         "lib/**/libc++*.a",
         "lib/**/libunwind.a",
-    ]),
+    ], allow_empty = True),
 )
 
 filegroup(
     name = "ar",
-    srcs = ["bin/llvm-ar"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-ar.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-ar",
+        ],
+    }}),
 )
 
 filegroup(
     name = "as",
-    srcs = [
-        "bin/clang",
-        "bin/llvm-as",
-    ],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/clang.exe",
+            "bin/llvm-as.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/clang",
+            "bin/llvm-as",
+        ],
+    }}),
 )
 
 filegroup(
     name = "nm",
-    srcs = ["bin/llvm-nm"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-nm.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-nm",
+        ],
+    }}),
 )
 
 filegroup(
     name = "objcopy",
-    srcs = ["bin/llvm-objcopy"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-objcopy.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-objcopy",
+        ],
+    }}),
 )
 
 filegroup(
     name = "objdump",
-    srcs = ["bin/llvm-objdump"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-objdump.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-objdump",
+        ],
+    }}),
 )
 
 filegroup(
     name = "profdata",
-    srcs = ["bin/llvm-profdata"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-profdata.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-profdata",
+        ],
+    }}),
 )
 
 filegroup(
     name = "dwp",
-    srcs = ["bin/llvm-dwp"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-dwp.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-dwp",
+        ],
+    }}),
 )
 
 filegroup(
     name = "ranlib",
-    srcs = ["bin/llvm-ranlib"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-ranlib.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-ranlib",
+        ],
+    }}),
 )
 
 filegroup(
     name = "readelf",
-    srcs = ["bin/llvm-readelf"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-readelf.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-readelf",
+        ],
+    }}),
 )
 
 filegroup(
     name = "strip",
-    srcs = ["bin/llvm-strip"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-strip.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-strip",
+        ],
+    }}),
 )
 
 filegroup(
     name = "symbolizer",
-    srcs = ["bin/llvm-symbolizer"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-symbolizer.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-symbolizer",
+        ],
+    }}),
 )
 
 filegroup(
     name = "clang-tidy",
-    srcs = ["bin/clang-tidy"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/clang-tidy.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/clang-tidy",
+        ],
+    }}),
 )
 
 filegroup(
     name = "clang-format",
-    srcs = ["bin/clang-format"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/clang-format.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/clang-format",
+        ],
+    }}),
 )
 
 filegroup(
     name = "git-clang-format",
-    srcs = ["bin/git-clang-format"],
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/git-clang-format.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/git-clang-format",
+        ],
+    }}),
 )
 
 filegroup(

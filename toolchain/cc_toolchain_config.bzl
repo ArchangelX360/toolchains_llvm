@@ -146,6 +146,22 @@ def cc_toolchain_config(
             "unknown",
             "unknown",
         ),
+        "windows-x86_64": (
+            "clang-x86_64-windows",
+            "k8",
+            "msvc",
+            "clang",
+            "windows_x86_64",
+            "windows_x86_64",
+        ),
+        "windows-aarch64": (
+            "clang-aarch64-windows",
+            "k8",
+            "msvc",
+            "clang",
+            "windows_aarch64",
+            "windows_aarch64",
+        ),
     }[target_os_arch_key]
 
     # Unfiltered compiler flags; these are placed at the end of the command
@@ -341,6 +357,12 @@ def cc_toolchain_config(
         cxx_flags.append("-fno-cxx-modules")
         cxx_flags.append("-Wno-module-import-in-extern-c")
 
+
+    # TODO: translate some Windows flag that were set above to have a configuration similar to UNIX
+    if target_os == "windows":
+        link_flags = []
+        libunwind_link_flags = []
+
     opt_link_flags = ["-Wl,--gc-sections"] if target_os == "linux" else []
 
     # Coverage flags:
@@ -353,6 +375,12 @@ def cc_toolchain_config(
     ## NOTE: make variables are missing here; unix_cc_toolchain_config doesn't
     ## pass these to `create_cc_toolchain_config_info`.
 
+    binary_ext = ""
+    script_ext = ".sh"
+    if exec_os == "windows":
+        binary_ext = ".exe"
+        script_ext = ".cmd"
+
     # The requirements here come from
     # https://cs.opensource.google/bazel/bazel/+/master:src/main/starlark/builtins_bzl/common/cc/cc_toolchain_provider_helper.bzl;l=75;drc=f0150efd1cca473640269caaf92b5a23c288089d
     # https://cs.opensource.google/bazel/bazel/+/master:src/main/java/com/google/devtools/build/lib/rules/cpp/CcModule.java;l=1257;drc=6743d76f9ecde726d592e88d8914b9db007b1c43
@@ -360,19 +388,19 @@ def cc_toolchain_config(
     # https://github.com/bazelbuild/rules_cc/blob/fe41fc4ea219c9d3680ee536bba6681f3baf838e/cc/private/toolchain/unix_cc_toolchain_config.bzl#L1887
     # NOTE: Ensure these are listed in toolchain_tools in toolchain/internal/common.bzl.
     tool_paths = {
-        "ar": tools_path_prefix + ("llvm-ar" if not use_libtool else "libtool"),
-        "cpp": tools_path_prefix + "clang-cpp",
-        "dwp": tools_path_prefix + "llvm-dwp",
-        "gcc": wrapper_bin_prefix + "cc_wrapper.sh",
-        "gcov": tools_path_prefix + "llvm-profdata",
-        "ld": tools_path_prefix + "ld.lld",
-        "llvm-cov": tools_path_prefix + "llvm-cov",
-        "llvm-profdata": tools_path_prefix + "llvm-profdata",
-        "nm": tools_path_prefix + "llvm-nm",
-        "objcopy": tools_path_prefix + "llvm-objcopy",
-        "objdump": tools_path_prefix + "llvm-objdump",
-        "strip": tools_path_prefix + "llvm-strip",
-        "parse_headers": wrapper_bin_prefix + "cc_wrapper.sh",
+        "ar": tools_path_prefix + ("llvm-ar" if not use_libtool else "libtool") + binary_ext,
+        "cpp": tools_path_prefix + "clang-cpp" + binary_ext,
+        "dwp": tools_path_prefix + "llvm-dwp" + binary_ext,
+        "gcc": wrapper_bin_prefix + "cc_wrapper" + script_ext,
+        "gcov": tools_path_prefix + "llvm-profdata" + binary_ext,
+        "ld": tools_path_prefix + "ld.lld" + binary_ext,
+        "llvm-cov": tools_path_prefix + "llvm-cov" + binary_ext,
+        "llvm-profdata": tools_path_prefix + "llvm-profdata" + binary_ext,
+        "nm": tools_path_prefix + "llvm-nm" + binary_ext,
+        "objcopy": tools_path_prefix + "llvm-objcopy" + binary_ext,
+        "objdump": tools_path_prefix + "llvm-objdump" + binary_ext,
+        "strip": tools_path_prefix + "llvm-strip" + binary_ext,
+        "parse_headers": wrapper_bin_prefix + "cc_wrapper" + script_ext,
     }
 
     # Start-end group linker support:
