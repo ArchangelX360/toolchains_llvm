@@ -360,7 +360,12 @@ def cc_toolchain_config(
 
     # TODO: translate some Windows flag that were set above to have a configuration similar to UNIX
     if target_os == "windows":
-        link_flags = []
+        compiler_rt_link_flags = []
+        link_flags = [
+            "/std:" + cxx_standard,
+            "-fms-compatibility",
+            "-fms-extensions",
+        ]
         libunwind_link_flags = []
 
     opt_link_flags = ["-Wl,--gc-sections"] if target_os == "linux" else []

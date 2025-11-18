@@ -2,58 +2,107 @@
 setlocal enabledelayedexpansion
 
 set "toolchain_path_prefix=%{toolchain_path_prefix}"
+
+REM Create a temporary file for the processed arguments
+for /f %%i in ('powershell -command "[guid]::NewGuid().ToString()"') do (
+    mkdir !TEMP!\toolchains_llvm\argfiles
+    set "OUTPUT_FILE=!TEMP!\toolchains_llvm\argfiles\args_%%i.txt"
+)
+if exist "!OUTPUT_FILE!" (
+    echo Error: Could not generate unique args filename "!OUTPUT_FILE!"
+    exit /b 1
+)
+
+REM Process all command line arguments
+:process_cmdline_args
+if "%~1"=="" goto done
+call :process_single_arg "%~1"
 shift
+goto process_cmdline_args
 
-set "result="
-
-:process_args
-if "%~1"=="" goto execute
+REM Process a single argument (either from command line or from argfile)
+:process_single_arg
 set "arg=%~1"
 
-REM Replace unsupported by clang-cl `--sysroot=` with -Xlinker /LIBPATH:
-echo !arg! | findstr /b /c:"--sysroot=" >nul
-if !errorlevel! equ 0 (
-    for /f "tokens=2 delims==" %%p in ("!arg!") do set "result=!result! -Xlinker /LIBPATH:%%~p"
-    shift
-    goto process_args
+REM Check if it's an argfile (starts with @)
+if "!arg:~0,1!"=="@" (
+    set "argfile=!arg:~1!"
+    call :process_argfile "!argfile!"
+    exit /b 0
 )
 
-REM TODO: could we be a bit smarter than an hardcoded list here? And if not, we must add all MSVC flags that `clang-cl` supports here
+REM Apply transformations and write to output
+call :transform_and_write "!arg!"
+exit /b 0
 
-REM Prefix linker flags with -Xlinker
+REM Read an argfile and process each line recursively
+:process_argfile
+set "file=%~1"
+echo "!file!" >> "!LOG_FILE!"
+if not exist "!file!" (
+    echo Error: Argfile not found: !file! >&2
+    exit /b 1
+)
+for /f "usebackq tokens=*" %%a in (!file!) do (
+    call :process_single_arg "%%a"
+)
+
+REM Apply transformation rules and write to output file
+REM This is where you add new transformation cases
+:transform_and_write
+set "arg=%~1"
 set "needs_xlinker=0"
 
-REM Check exact matches
-if /i "!arg!"=="/NOLOGO" set "needs_xlinker=1"
-if /i "!arg!"=="/NXCOMPAT" set "needs_xlinker=1"
-if /i "!arg!"=="/DYNAMICBASE" set "needs_xlinker=1"
-if /i "!arg!"=="/DEBUG" set "needs_xlinker=1"
-
-REM Check prefixes
-if "!needs_xlinker!"=="0" echo !arg! | findstr /i /b ^
-  /c:"/OPT:" ^
-  /c:"/LIBPATH:" ^
-  /c:"/PDBALTPATH:" ^
-  /c:"/SUBSYSTEM:" ^
-  /c:"/OUT:" ^
-  /c:"/MACHINE:" ^
-  /c:"/defaultlib:" ^
-  /c:"/INCREMENTAL:" ^
-  >nul && set "needs_xlinker=1"
-
-if "!needs_xlinker!"=="1" (
-    set "result=!result! -Xlinker !arg!"
-) else (
-    set "result=!result! !arg!"
+REM Special case: --sysroot=path -> -Xlinker /LIBPATH:path
+echo !arg! | findstr /b /c:"--sysroot=" >nul
+if !errorlevel! equ 0 (
+    for /f "tokens=2 delims==" %%p in ("!arg!") do (
+        set "sysroot_path=%%p"
+        call set "sysroot_path=!sysroot_path!"
+        echo -Xlinker /LIBPATH:!sysroot_path! >> "!OUTPUT_FILE!"
+    )
+    exit /b 0
 )
 
-shift
-goto process_args
+REM Check for prefix matches (arguments starting with these strings)
+echo !arg! | findstr /b ^
+  /c:"/MACHINE:" ^
+  /c:"/OPT:" ^
+  /c:"/DEF:" ^
+  /c:"/LIBPATH:" ^
+  /c:"/PDBALTPATH:" ^
+  /c:"/NATVIS:" ^
+  /c:"/SUBSYSTEM:"  ^
+  /c:"/OUT:" ^
+  /c:"/defaultlib:" ^
+  /c:"/STD:" ^
+  /c:"/IMPLIB:" ^
+  /c:"/INCREMENTAL:" >nul
+if !errorlevel! equ 0 set "needs_xlinker=1"
 
-:execute
-set "result=!result:~1!"
+REM Check for exact matches
+if "!arg!"=="/NOLOGO" set "needs_xlinker=1"
+if "!arg!"=="/NXCOMPAT" set "needs_xlinker=1"
+if "!arg!"=="/DYNAMICBASE" set "needs_xlinker=1"
+if "!arg!"=="/DLL" set "needs_xlinker=1"
+if "!arg!"=="/DEBUG" set "needs_xlinker=1"
 
-"%toolchain_path_prefix%\bin\clang-cl.exe" !result!
+REM Expand any %variable% patterns in the argument
+REM call set "expanded_arg=!arg!"
+
+REM Write -Xlinker and argument on same line if rule matched, otherwise just argument
+if "!needs_xlinker!"=="1" (
+    echo -Xlinker !arg! >> "!OUTPUT_FILE!"
+) else (
+    echo !arg! >> "!OUTPUT_FILE!"
+)
+exit /b 0
+
+:done
+
+if exist "!OUTPUT_FILE!" (
+	"!toolchain_path_prefix!\bin\clang-cl.exe" -v -Xlinker -verbose "@!OUTPUT_FILE!"
+)
 
 set "exit_code=%errorlevel%"
 endlocal & exit /b %exit_code%
