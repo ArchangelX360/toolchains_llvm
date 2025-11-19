@@ -38,14 +38,12 @@ exit /b 0
 REM Read an argfile and process each line recursively
 :process_argfile
 set "file=%~1"
-echo "!file!" >> "!LOG_FILE!"
-if not exist "!file!" (
-    echo Error: Argfile not found: !file! >&2
-    exit /b 1
+if exist "%file%" (
+	for /F "tokens=* delims=" %%a in ('Type "%file%"') do (
+		call :process_single_arg %%a
+	)
 )
-for /f "usebackq tokens=*" %%a in (!file!) do (
-    call :process_single_arg "%%a"
-)
+exit /b 0
 
 REM Apply transformation rules and write to output file
 REM This is where you add new transformation cases
@@ -59,7 +57,7 @@ if !errorlevel! equ 0 (
     for /f "tokens=2 delims==" %%p in ("!arg!") do (
         set "sysroot_path=%%p"
         call set "sysroot_path=!sysroot_path!"
-        echo -Xlinker /LIBPATH:!sysroot_path! >> "!OUTPUT_FILE!"
+        echo "-Xlinker" "/LIBPATH:!sysroot_path!" >> "!OUTPUT_FILE!"
     )
     exit /b 0
 )
@@ -87,14 +85,12 @@ if "!arg!"=="/DYNAMICBASE" set "needs_xlinker=1"
 if "!arg!"=="/DLL" set "needs_xlinker=1"
 if "!arg!"=="/DEBUG" set "needs_xlinker=1"
 
-REM Expand any %variable% patterns in the argument
-REM call set "expanded_arg=!arg!"
-
+REM TODO: seems like PDBALTPATH's value `%_PDB%` is being evalutated in this script instead of by the linker
 REM Write -Xlinker and argument on same line if rule matched, otherwise just argument
 if "!needs_xlinker!"=="1" (
-    echo -Xlinker !arg! >> "!OUTPUT_FILE!"
+    echo "-Xlinker" "!arg!" >> "!OUTPUT_FILE!"
 ) else (
-    echo !arg! >> "!OUTPUT_FILE!"
+    echo "!arg!" >> "!OUTPUT_FILE!"
 )
 exit /b 0
 
