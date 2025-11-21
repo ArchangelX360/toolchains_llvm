@@ -45,9 +45,10 @@ exit /b 0
 REM Read an argfile and process each line recursively
 :process_argfile
 set "file=%~1"
-if exist "%file%" (
-	for /F "tokens=* delims=" %%a in ('Type "%file%"') do (
-		call :process_single_arg %%a
+if exist "!file!" (
+	for /F "tokens=* delims=" %%a in ('Type "!file!"') do (
+        set "argfile_arg=%%~a"
+		call :process_single_arg "!argfile_arg!"
 	)
 )
 exit /b 0
@@ -61,8 +62,7 @@ REM Special case: --sysroot=path -> -Xlinker /LIBPATH:path
 echo !arg! | findstr /b /c:"--sysroot=" >nul
 if !errorlevel! equ 0 (
     for /f "tokens=2 delims==" %%p in ("!arg!") do (
-        set "sysroot_path=%%p"
-        call set "sysroot_path=!sysroot_path!"
+        set "sysroot_path=%%~p"
         set "arg=/LIBPATH:!sysroot_path!"
     )
 )
