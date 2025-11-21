@@ -2,7 +2,8 @@
 setlocal enabledelayedexpansion
 
 REM Templated values:
-set "toolchain_path_prefix=%{toolchain_path_prefix}"
+REM TODO: maybe do somethign a bit smarter about this, like in UNIX ones
+set "toolchain_path_prefix=%~dp0../../../%{toolchain_path_prefix}"
 
 REM Create a temporary directory for argfiles if not existing
 set "ARGFILES_DIR=!TEMP!\toolchains_llvm\argfiles"
