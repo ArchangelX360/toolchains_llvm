@@ -415,6 +415,9 @@ llvm_config_attrs.update({
     "_windows_cc_wrapper_cmd_tpl": attr.label(
         default = "//toolchain:cc_wrapper.cmd.tpl",
     ),
+    "_windows_cc_wrapper_ps1": attr.label(
+        default = "//toolchain:cc_wrapper.ps1",
+    ),
     "_cc_wrapper_sh_tpl": attr.label(
         default = "//toolchain:cc_wrapper.sh.tpl",
     ),
