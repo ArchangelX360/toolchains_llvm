@@ -34,7 +34,6 @@ filegroup(
     srcs = [%{symlinked_tools}
         "%{tools_dir}/cc_wrapper.sh",
         "%{tools_dir}/cc_wrapper.cmd",
-        "%{tools_dir}/cc_wrapper.ps1",
     ],
     visibility = ["//visibility:private"],
 )
