@@ -59,29 +59,30 @@ set "arg=%~1"
 set "needs_xlinker=0"
 
 REM Special case: --sysroot=path -> -Xlinker /LIBPATH:path
-echo !arg! | findstr /b /c:"--sysroot=" >nul
-if !errorlevel! equ 0 (
-    for /f "tokens=2 delims==" %%p in ("!arg!") do (
-        set "sysroot_path=%%p"
-        echo /winsysroot !sysroot_path! >> "!TMP_ARGFILE!"
-        set "arg=/LIBPATH:!sysroot_path!"
-    )
+REM Use string substitution to avoid echo issues with special characters
+set "check_sysroot=!arg:--sysroot==!"
+if not "!check_sysroot!"=="!arg!" (
+    REM Extract path after --sysroot=
+    set "sysroot_path=!arg:~10!"
+    <nul set /p "=/winsysroot !sysroot_path!">> "!TMP_ARGFILE!"
+    echo.>> "!TMP_ARGFILE!"
+    set "arg=/LIBPATH:!sysroot_path!"
 )
 
-REM Check for prefix matches
-echo !arg! | findstr /b ^
-  /c:"/MACHINE:" ^
-  /c:"/OPT:" ^
-  /c:"/DEF:" ^
-  /c:"/LIBPATH:" ^
-  /c:"/PDBALTPATH:" ^
-  /c:"/NATVIS:" ^
-  /c:"/SUBSYSTEM:"  ^
-  /c:"/OUT:" ^
-  /c:"/defaultlib:" ^
-  /c:"/IMPLIB:" ^
-  /c:"/INCREMENTAL:" >nul
-if !errorlevel! equ 0 set "needs_xlinker=1"
+REM Check for prefix matches using string substitution instead of echo | findstr
+REM This avoids issues with special characters like commas
+set "needs_xlinker=0"
+if not "!arg:/MACHINE:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/OPT:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/DEF:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/LIBPATH:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/PDBALTPATH:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/NATVIS:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/SUBSYSTEM:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/OUT:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/defaultlib:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/IMPLIB:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/INCREMENTAL:=!"=="!arg!" set "needs_xlinker=1"
 
 REM Check for exact matches
 if "!arg!"=="/NOLOGO" set "needs_xlinker=1"
@@ -93,10 +94,15 @@ if "!arg!"=="/DEBUG" set "needs_xlinker=1"
 REM TODO: seems like PDBALTPATH's value `%_PDB%` is being evalutated in this script instead of by the linker
 REM Write -Xlinker and argument on same line if rule matched, otherwise just argument
 if "!needs_xlinker!"=="1" (
-    echo -Xlinker !arg! >> "!TMP_ARGFILE!"
+    set "outline=-Xlinker !arg!"
 ) else (
-    echo !arg! >> "!TMP_ARGFILE!"
+    set "outline=!arg!"
 )
+REM Use set /p with NUL input to write without newline interpretation issues
+REM The <nul provides empty input, and set /p outputs the prompt string as-is
+REM IMPORTANT: No space between the closing quote and >> or it will be included in output
+<nul set /p "=!outline!">> "!TMP_ARGFILE!"
+echo.>> "!TMP_ARGFILE!"
 exit /b 0
 
 REM --------------------------------------------
