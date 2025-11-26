@@ -62,7 +62,8 @@ REM Special case: --sysroot=path -> -Xlinker /LIBPATH:path
 echo !arg! | findstr /b /c:"--sysroot=" >nul
 if !errorlevel! equ 0 (
     for /f "tokens=2 delims==" %%p in ("!arg!") do (
-        set "sysroot_path=%%~p"
+        set "sysroot_path=%%p"
+        echo /winsysroot !sysroot_path! >> "!TMP_ARGFILE!"
         set "arg=/LIBPATH:!sysroot_path!"
     )
 )
