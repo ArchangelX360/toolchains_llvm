@@ -5,6 +5,8 @@ REM Templated values:
 REM TODO: maybe do somethign a bit smarter about this, like in UNIX ones
 SET "clang_executable=%~dp0../../../%{toolchain_path_prefix}/bin/clang-cl.exe"
 
+SET "add_libpath=0"
+
 REM Create a temporary directory for argfiles if not existing
 set "ARGFILES_DIR=!TEMP!\toolchains_llvm\argfiles"
 if not exist "!ARGFILES_DIR!" (
@@ -62,11 +64,23 @@ REM Special case: --sysroot=path -> -Xlinker /LIBPATH:path
 REM Use string substitution to avoid echo issues with special characters
 set "check_sysroot=!arg:--sysroot==!"
 if not "!check_sysroot!"=="!arg!" (
-    REM Extract path after --sysroot=
-    set "sysroot_path=!arg:~10!"
-    <nul set /p "=/winsysroot !sysroot_path!">> "!TMP_ARGFILE!"
+    set "outline=/imsvc C:\Users\titouan.bion\Developer_windows\sdk\10\Include\10.0.26100.0\um"
+    <nul set /p "=!outline!">> "!TMP_ARGFILE!"
     echo.>> "!TMP_ARGFILE!"
-    set "arg=/LIBPATH:!sysroot_path!"
+
+    set "outline=/imsvc C:\Users\titouan.bion\Developer_windows\sdk\10\Include\10.0.26100.0\ucrt"
+    <nul set /p "=!outline!">> "!TMP_ARGFILE!"
+    echo.>> "!TMP_ARGFILE!"
+
+    set "outline=/imsvc C:\Users\titouan.bion\Developer_windows\sdk\10\Include\10.0.26100.0\shared"
+    <nul set /p "=!outline!">> "!TMP_ARGFILE!"
+    echo.>> "!TMP_ARGFILE!"
+
+    set "outline=/imsvc C:\Users\titouan.bion\Developer_windows\sdk\MSVC\14.50.35717\include"
+    <nul set /p "=!outline!">> "!TMP_ARGFILE!"
+    echo.>> "!TMP_ARGFILE!"
+
+    exit /b 0
 )
 
 REM Check for prefix matches using string substitution instead of echo | findstr
@@ -76,6 +90,7 @@ if not "!arg:/MACHINE:=!"=="!arg!" set "needs_xlinker=1"
 if not "!arg:/OPT:=!"=="!arg!" set "needs_xlinker=1"
 if not "!arg:/DEF:=!"=="!arg!" set "needs_xlinker=1"
 if not "!arg:/LIBPATH:=!"=="!arg!" set "needs_xlinker=1"
+if not "!arg:/LIBPATH:=!"=="!arg!" set "add_libpath=1"
 if not "!arg:/PDBALTPATH:=!"=="!arg!" set "needs_xlinker=1"
 if not "!arg:/NATVIS:=!"=="!arg!" set "needs_xlinker=1"
 if not "!arg:/SUBSYSTEM:=!"=="!arg!" set "needs_xlinker=1"
@@ -110,8 +125,23 @@ REM Helper functions [END]
 REM --------------------------------------------
 
 :call_linker
+
+if "%add_libpath%"=="1" (
+    set "outline=-Xlinker /LIBPATH:C:\Users\titouan.bion\Developer_windows\sdk\10\Lib\10.0.26100.0\um\arm64"
+    <nul set /p "=!outline!">> "!TMP_ARGFILE!"
+    echo.>> "!TMP_ARGFILE!"
+
+    set "outline=-Xlinker /LIBPATH:C:\Users\titouan.bion\Developer_windows\sdk\10\Lib\10.0.26100.0\ucrt\arm64"
+    <nul set /p "=!outline!">> "!TMP_ARGFILE!"
+    echo.>> "!TMP_ARGFILE!"
+
+    set "outline=-Xlinker /LIBPATH:C:\Users\titouan.bion\Developer_windows\sdk\MSVC\14.50.35717\lib\arm64"
+    <nul set /p "=!outline!">> "!TMP_ARGFILE!"
+    echo.>> "!TMP_ARGFILE!"
+)
+
 if exist "!TMP_ARGFILE!" (
-	"!clang_executable!" -v -Xlinker -verbose "@!TMP_ARGFILE!" && DEL "!TMP_ARGFILE!"
+	"!clang_executable!" "@!TMP_ARGFILE!" && DEL "!TMP_ARGFILE!"
 )
 set "exit_code=%errorlevel%"
 endlocal & exit /b %exit_code%
