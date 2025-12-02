@@ -50,6 +50,7 @@ _toolchain_tools = {
         "llvm-dwp",
         "llvm-profdata",
         "llvm-cov",
+        "llvm-lib",
         "llvm-nm",
         "llvm-objcopy",
         "llvm-objdump",

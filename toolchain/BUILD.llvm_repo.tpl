@@ -176,6 +176,19 @@ filegroup(
 )
 
 filegroup(
+    name = "llvm-lib",
+    srcs = select({{
+        # TODO: does not work for cross-compilation, must be changed
+        "@platforms//os:windows": [
+            "bin/llvm-lib.exe",
+        ] + ALL_DLLS,
+        "//conditions:default": [
+            "bin/llvm-lib",
+        ],
+    }}),
+)
+
+filegroup(
     name = "objcopy",
     srcs = select({{
         # TODO: does not work for cross-compilation, must be changed

@@ -155,16 +155,16 @@ def cc_toolchain_config(
             "x64_windows",
             "msvc",
             "clang-cl",
-            "windows_x86_64",
-            "windows_x86_64",
+            "windows_x86_64", # TODO: is that correct?
+            "windows_x86_64", # TODO: is that correct?
         ),
         "windows-aarch64": (
             "clang-aarch64-windows",
             "arm64_windows",
             "msvc",
             "clang-cl",
-            "windows_aarch64",
-            "windows_aarch64",
+            "windows_aarch64", # TODO: is that correct?
+            "windows_aarch64", # TODO: is that correct?
         ),
     }[target_os_arch_key]
 
@@ -444,6 +444,7 @@ def cc_toolchain_config(
         "gcc": tools_path_prefix + "clang-cl" + binary_ext if exec_os == "windows" else wrapper_bin_prefix + "cc_wrapper" + script_ext,
         "gcov": tools_path_prefix + "llvm-profdata" + binary_ext,
         "ld": tools_path_prefix + "lld-link" + binary_ext if exec_os == "windows" else tools_path_prefix + "ld.lld" + binary_ext,
+        "llvm-lib": tools_path_prefix + "llvm-lib" + binary_ext,
         "llvm-cov": tools_path_prefix + "llvm-cov" + binary_ext,
         "llvm-profdata": tools_path_prefix + "llvm-profdata" + binary_ext,
         "nm": tools_path_prefix + "llvm-nm" + binary_ext,
@@ -522,12 +523,22 @@ def cc_toolchain_config(
             abi_libc_version = abi_libc_version,
             # msvc_env_tmp = "%{clang_cl_env_tmp_arm64}", # TODO
             # msvc_env_path = "%{clang_cl_env_path_arm64}", # TODO
-            # msvc_env_include = "%{clang_cl_env_include_arm64}", # TODO
+            msvc_env_include = ";".join([
+                # "{}/VC/Tools/MSVC/14.50.35717/include".format(sysroot_path),
+                # "{}/Windows_Kits/10/Include/10.0.26100.0/um".format(sysroot_path),
+                # "{}/Windows_Kits/10/Include/10.0.26100.0/shared".format(sysroot_path),
+                # "{}/Windows_Kits/10/Include/10.0.26100.0/ucrt".format(sysroot_path),
+                # TODO: fix inclusion using relative path
+                "C:/Users/titouan.bion/Developer_windows/ultimate/sysroots/windows-aarch64/Windows_Kits/10/Include/10.0.26100.0/ucrt",
+                "C:/Users/titouan.bion/Developer_windows/ultimate/sysroots/windows-aarch64/Windows_Kits/10/Include/10.0.26100.0/shared",
+                "C:/Users/titouan.bion/Developer_windows/ultimate/sysroots/windows-aarch64/Windows_Kits/10/Include/10.0.26100.0/um",
+                "C:/Users/titouan.bion/Developer_windows/ultimate/sysroots/windows-aarch64/VC/Tools/MSVC/14.50.35717/include",
+            ]),
             # msvc_env_lib = "%{clang_cl_env_lib_arm64}", # TODO
             msvc_cl_path = tool_paths["gcc"],
             # msvc_ml_path = tool_paths["ml"], # TODO
             msvc_link_path = tool_paths["ld"],
-            # msvc_lib_path = "%{clang_cl_lib_path_arm64}", # TODO: `llvm-lib`
+            msvc_lib_path = tool_paths["llvm-lib"],
             cxx_builtin_include_directories = cxx_builtin_include_directories,
             tool_paths = tool_paths,
             archiver_flags = archive_flags,
