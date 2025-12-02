@@ -384,9 +384,9 @@ def cc_toolchain_config(
         if target_arch == "aarch64":
             link_flags.extend([
                 "/MACHINE:ARM64",
-                "/LIBPATH:{}splat/Windows_Kits/10/Lib/10.0.26100.0/ucrt/arm64".format(sysroot_path),
-                "/LIBPATH:{}splat/Windows_Kits/10/Lib/10.0.26100.0/um/arm64".format(sysroot_path),
-                "/LIBPATH:{}splat/VC/Tools/MSVC/14.50.35717/lib/arm64".format(sysroot_path),
+                "/LIBPATH:{}/Windows_Kits/10/Lib/10.0.26100.0/ucrt/arm64".format(sysroot_path),
+                "/LIBPATH:{}/Windows_Kits/10/Lib/10.0.26100.0/um/arm64".format(sysroot_path),
+                "/LIBPATH:{}/VC/Tools/MSVC/14.50.35717/lib/arm64".format(sysroot_path),
             ])
         # cxx_flags.extend([
         cxx_flags = [
@@ -402,10 +402,10 @@ def cc_toolchain_config(
             "/DWIN32",
             "/D_WIN32",
             "/D_WINDOWS",
-            "/clang:-isystem{}splat/VC/Tools/MSVC/14.50.35717/include".format(sysroot_path),
-            "/clang:-isystem{}splat/Windows_Kits/10/Include/10.0.26100.0/um".format(sysroot_path),
-            "/clang:-isystem{}splat/Windows_Kits/10/Include/10.0.26100.0/shared".format(sysroot_path),
-            "/clang:-isystem{}splat/Windows_Kits/10/Include/10.0.26100.0/ucrt".format(sysroot_path),
+            "/clang-I{}/VC/Tools/MSVC/14.50.35717/include".format(sysroot_path),
+            "/clang-I{}/Windows_Kits/10/Include/10.0.26100.0/um".format(sysroot_path),
+            "/clang-I{}/Windows_Kits/10/Include/10.0.26100.0/shared".format(sysroot_path),
+            "/clang-I{}/Windows_Kits/10/Include/10.0.26100.0/ucrt".format(sysroot_path),
             # Do not resolve our symlinked resource prefixes to real paths.
             "-no-canonical-prefixes",
             # Reproducibility
@@ -533,16 +533,11 @@ def cc_toolchain_config(
             archiver_flags = archive_flags,
             default_link_flags = link_flags + select({str(Label("@toolchains_llvm//toolchain/config:use_libunwind")): libunwind_link_flags, "//conditions:default": []}) +
                          select({str(Label("@toolchains_llvm//toolchain/config:use_compiler_rt")): compiler_rt_link_flags, "//conditions:default": []}),
-
-            # TODO: set these
-            # dbg_mode_debug_flag = "%{clang_cl_dbg_mode_debug_flag_arm64}",
-            # fastbuild_mode_debug_flag = "%{clang_cl_fastbuild_mode_debug_flag_arm64}",
-            # supports_parse_showincludes = %{clang_cl_parse_showincludes_arm64},
-
+            default_compile_flags = compile_flags,
+            dbg_mode_debug_flag = " ".join(dbg_compile_flags),
+            fastbuild_mode_debug_flag = " ".join(fastbuild_compile_flags),
+            supports_parse_showincludes = False, # TODO: what would be the good way of setting this?
             # TODO: what to do with these?
-            # compile_flags = compile_flags,
-            # fastbuild_compile_flags = fastbuild_compile_flags,
-            # dbg_compile_flags = dbg_compile_flags,
             # opt_compile_flags = opt_compile_flags,
             # conly_flags = conly_flags,
             # cxx_flags = cxx_flags,

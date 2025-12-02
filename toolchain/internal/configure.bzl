@@ -392,7 +392,13 @@ def _cc_toolchain_str(
             _join(sysroot_prefix, "/System/Library/Frameworks"),
         ])
     elif target_os == "windows":
-        pass # TODO: should we add support for syslib directories here? Things like `c\um\arm64`, `c\ucrt\arm64`, etc.
+        # TODO: these versions and layout are hardcoded, could we do something about the versions at least?
+        cxx_builtin_include_directories.extend([
+            _join(sysroot_prefix, "/VC/Tools/MSVC/14.50.35717/include"),
+            _join(sysroot_prefix, "/Windows_Kits/10/Include/10.0.26100.0/um"),
+            _join(sysroot_prefix, "/Windows_Kits/10/Include/10.0.26100.0/shared"),
+            _join(sysroot_prefix, "/Windows_Kits/10/Include/10.0.26100.0/ucrt"),
+        ])
     elif target_os == "none" or target_os == "wasip1":
         if sysroot_prefix:
             cxx_builtin_include_directories.extend([
