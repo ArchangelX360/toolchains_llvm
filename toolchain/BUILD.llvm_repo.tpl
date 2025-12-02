@@ -38,12 +38,14 @@ filegroup(
            "bin/clang++.exe",
            "bin/clang-cpp.exe",
            "bin/clang-cl.exe",
+           "bin/lld-link.exe",
        ] + ALL_DLLS,
        "//conditions:default": [
            "bin/clang",
            "bin/clang++",
            "bin/clang-cpp",
            "bin/clang-cl",
+           "bin/lld-link",
        ],
    }}),
 )

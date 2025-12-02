@@ -41,6 +41,7 @@ _toolchain_tools = {
     for name in [
         "clang-cpp",
         "clang-cl",
+        "lld-link",
         "clang-format",
         "clang-tidy",
         "clangd",

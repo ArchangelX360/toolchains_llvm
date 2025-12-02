@@ -18,6 +18,10 @@ load(
     unix_cc_toolchain_config = "cc_toolchain_config",
 )
 load(
+    "@rules_cc//cc/private/toolchain:windows_cc_toolchain_config.bzl",
+    windows_cc_toolchain_config = "cc_toolchain_config",
+)
+load(
     "//toolchain/internal:common.bzl",
     _check_os_arch_keys = "check_os_arch_keys",
     _os_arch_pair = "os_arch_pair",
@@ -148,17 +152,17 @@ def cc_toolchain_config(
         ),
         "windows-x86_64": (
             "clang-x86_64-windows",
-            "k8",
+            "x64_windows",
             "msvc",
-            "clang",
+            "clang-cl",
             "windows_x86_64",
             "windows_x86_64",
         ),
         "windows-aarch64": (
             "clang-aarch64-windows",
-            "k8",
+            "arm64_windows",
             "msvc",
-            "clang",
+            "clang-cl",
             "windows_aarch64",
             "windows_aarch64",
         ),
@@ -251,7 +255,14 @@ def cc_toolchain_config(
     # Pre-installed libtool on macOS has -static as default, but llvm-libtool-darwin needs it
     # explicitly. cc_common.create_link_variables does not automatically add this either if
     # output_file arg to it is None.
-    archive_flags = ["-static"] if is_darwin_exec_and_target else []
+    if is_darwin_exec_and_target:
+        archive_flags = ["-static"]
+    elif target_os == "windows" and target_arch == "x86_64":
+        archive_flags = ["/MACHINE:X64"]
+    elif target_os == "windows" and target_arch == "aarch64":
+        archive_flags = ["/MACHINE:ARM64"]
+    else:
+        archive_flags = []
 
     # Flags related to C++ standard.
     # The linker has no way of knowing if there are C++ objects; so we
@@ -362,11 +373,45 @@ def cc_toolchain_config(
     if target_os == "windows":
         compiler_rt_link_flags = []
         link_flags = [
+        ]
+        if target_arch == "x86_64":
+            link_flags.extend([
+                "/MACHINE:X64",
+                "/LIBPATH:{}splat/Windows_Kits/10/Lib/10.0.26100.0/ucrt/x64".format(sysroot_path),
+                "/LIBPATH:{}splat/Windows_Kits/10/Lib/10.0.26100.0/um/x64".format(sysroot_path),
+                "/LIBPATH:{}splat/VC/Tools/MSVC/14.50.35717/lib/x64".format(sysroot_path),
+            ])
+        if target_arch == "aarch64":
+            link_flags.extend([
+                "/MACHINE:ARM64",
+                "/LIBPATH:{}splat/Windows_Kits/10/Lib/10.0.26100.0/ucrt/arm64".format(sysroot_path),
+                "/LIBPATH:{}splat/Windows_Kits/10/Lib/10.0.26100.0/um/arm64".format(sysroot_path),
+                "/LIBPATH:{}splat/VC/Tools/MSVC/14.50.35717/lib/arm64".format(sysroot_path),
+            ])
+        # cxx_flags.extend([
+        cxx_flags = [
             "/std:" + cxx_standard,
             "-fms-compatibility",
             "-fms-extensions",
+        # ])
         ]
         libunwind_link_flags = []
+        compile_flags.extend([
+            "/MT",
+            "/Brepro",
+            "/DWIN32",
+            "/D_WIN32",
+            "/D_WINDOWS",
+            "/clang:-isystem{}splat/VC/Tools/MSVC/14.50.35717/include".format(sysroot_path),
+            "/clang:-isystem{}splat/Windows_Kits/10/Include/10.0.26100.0/um".format(sysroot_path),
+            "/clang:-isystem{}splat/Windows_Kits/10/Include/10.0.26100.0/shared".format(sysroot_path),
+            "/clang:-isystem{}splat/Windows_Kits/10/Include/10.0.26100.0/ucrt".format(sysroot_path),
+            # Do not resolve our symlinked resource prefixes to real paths.
+            "-no-canonical-prefixes",
+            # Reproducibility
+            "-Wno-builtin-macro-redefined",
+            "/clang:-fdebug-prefix-map={}=__bazel_toolchain_llvm_repo__/".format(toolchain_path_prefix),
+        ])
 
     opt_link_flags = ["-Wl,--gc-sections"] if target_os == "linux" else []
 
@@ -396,9 +441,9 @@ def cc_toolchain_config(
         "ar": tools_path_prefix + ("llvm-ar" if not use_libtool else "libtool") + binary_ext,
         "cpp": tools_path_prefix + "clang-cpp" + binary_ext,
         "dwp": tools_path_prefix + "llvm-dwp" + binary_ext,
-        "gcc": wrapper_bin_prefix + "cc_wrapper" + script_ext,
+        "gcc": tools_path_prefix + "clang-cl" + binary_ext if exec_os == "windows" else wrapper_bin_prefix + "cc_wrapper" + script_ext,
         "gcov": tools_path_prefix + "llvm-profdata" + binary_ext,
-        "ld": tools_path_prefix + "ld.lld" + binary_ext,
+        "ld": tools_path_prefix + "lld-link" + binary_ext if exec_os == "windows" else tools_path_prefix + "ld.lld" + binary_ext,
         "llvm-cov": tools_path_prefix + "llvm-cov" + binary_ext,
         "llvm-profdata": tools_path_prefix + "llvm-profdata" + binary_ext,
         "nm": tools_path_prefix + "llvm-nm" + binary_ext,
@@ -464,33 +509,73 @@ def cc_toolchain_config(
     if compiler_configuration["extra_unfiltered_compile_flags"] != None:
         unfiltered_compile_flags.extend(_fmt_flags(compiler_configuration["extra_unfiltered_compile_flags"], toolchain_path_prefix))
 
-    # Source: https://cs.opensource.google/bazel/bazel/+/master:tools/cpp/unix_cc_toolchain_config.bzl
-    unix_cc_toolchain_config(
-        name = name,
-        cpu = target_cpu,
-        compiler = compiler,
-        toolchain_identifier = toolchain_identifier,
-        host_system_name = exec_arch,
-        target_system_name = target_system_name,
-        target_libc = target_libc,
-        abi_version = abi_version,
-        abi_libc_version = abi_libc_version,
-        cxx_builtin_include_directories = cxx_builtin_include_directories,
-        tool_paths = tool_paths,
-        compile_flags = compile_flags,
-        fastbuild_compile_flags = fastbuild_compile_flags,
-        dbg_compile_flags = dbg_compile_flags,
-        opt_compile_flags = opt_compile_flags,
-        conly_flags = conly_flags,
-        cxx_flags = cxx_flags,
-        link_flags = link_flags + select({str(Label("@toolchains_llvm//toolchain/config:use_libunwind")): libunwind_link_flags, "//conditions:default": []}) +
-                     select({str(Label("@toolchains_llvm//toolchain/config:use_compiler_rt")): compiler_rt_link_flags, "//conditions:default": []}),
-        archive_flags = archive_flags,
-        link_libs = link_libs,
-        opt_link_flags = opt_link_flags,
-        unfiltered_compile_flags = unfiltered_compile_flags,
-        coverage_compile_flags = coverage_compile_flags,
-        coverage_link_flags = coverage_link_flags,
-        supports_start_end_lib = supports_start_end_lib,
-        builtin_sysroot = sysroot_path,
-    )
+    if exec_os == "windows":
+        windows_cc_toolchain_config(
+            name = name,
+            cpu = target_cpu,
+            compiler = compiler,
+            toolchain_identifier = toolchain_identifier,
+            host_system_name = exec_arch,
+            target_system_name = target_system_name,
+            target_libc = target_libc,
+            abi_version = abi_version,
+            abi_libc_version = abi_libc_version,
+            # msvc_env_tmp = "%{clang_cl_env_tmp_arm64}", # TODO
+            # msvc_env_path = "%{clang_cl_env_path_arm64}", # TODO
+            # msvc_env_include = "%{clang_cl_env_include_arm64}", # TODO
+            # msvc_env_lib = "%{clang_cl_env_lib_arm64}", # TODO
+            msvc_cl_path = tool_paths["gcc"],
+            # msvc_ml_path = tool_paths["ml"], # TODO
+            msvc_link_path = tool_paths["ld"],
+            # msvc_lib_path = "%{clang_cl_lib_path_arm64}", # TODO: `llvm-lib`
+            cxx_builtin_include_directories = cxx_builtin_include_directories,
+            tool_paths = tool_paths,
+            archiver_flags = archive_flags,
+            default_link_flags = link_flags + select({str(Label("@toolchains_llvm//toolchain/config:use_libunwind")): libunwind_link_flags, "//conditions:default": []}) +
+                         select({str(Label("@toolchains_llvm//toolchain/config:use_compiler_rt")): compiler_rt_link_flags, "//conditions:default": []}),
+
+            # TODO: set these
+            # dbg_mode_debug_flag = "%{clang_cl_dbg_mode_debug_flag_arm64}",
+            # fastbuild_mode_debug_flag = "%{clang_cl_fastbuild_mode_debug_flag_arm64}",
+            # supports_parse_showincludes = %{clang_cl_parse_showincludes_arm64},
+
+            # TODO: what to do with these?
+            # compile_flags = compile_flags,
+            # fastbuild_compile_flags = fastbuild_compile_flags,
+            # dbg_compile_flags = dbg_compile_flags,
+            # opt_compile_flags = opt_compile_flags,
+            # conly_flags = conly_flags,
+            # cxx_flags = cxx_flags,
+            # link_libs = link_libs,
+        )
+    else:
+        # Source: https://cs.opensource.google/bazel/bazel/+/master:tools/cpp/unix_cc_toolchain_config.bzl
+        unix_cc_toolchain_config(
+            name = name,
+            cpu = target_cpu,
+            compiler = compiler,
+            toolchain_identifier = toolchain_identifier,
+            host_system_name = exec_arch,
+            target_system_name = target_system_name,
+            target_libc = target_libc,
+            abi_version = abi_version,
+            abi_libc_version = abi_libc_version,
+            cxx_builtin_include_directories = cxx_builtin_include_directories,
+            tool_paths = tool_paths,
+            compile_flags = compile_flags,
+            fastbuild_compile_flags = fastbuild_compile_flags,
+            dbg_compile_flags = dbg_compile_flags,
+            opt_compile_flags = opt_compile_flags,
+            conly_flags = conly_flags,
+            cxx_flags = cxx_flags,
+            link_flags = link_flags + select({str(Label("@toolchains_llvm//toolchain/config:use_libunwind")): libunwind_link_flags, "//conditions:default": []}) +
+                         select({str(Label("@toolchains_llvm//toolchain/config:use_compiler_rt")): compiler_rt_link_flags, "//conditions:default": []}),
+            archive_flags = archive_flags,
+            link_libs = link_libs,
+            opt_link_flags = opt_link_flags,
+            unfiltered_compile_flags = unfiltered_compile_flags,
+            coverage_compile_flags = coverage_compile_flags,
+            coverage_link_flags = coverage_link_flags,
+            supports_start_end_lib = supports_start_end_lib,
+            builtin_sysroot = sysroot_path,
+        )
