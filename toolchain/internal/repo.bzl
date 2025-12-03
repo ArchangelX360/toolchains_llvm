@@ -412,9 +412,6 @@ llvm_config_attrs.update({
     "_darwin_cc_wrapper_sh_tpl": attr.label(
         default = "//toolchain:osx_cc_wrapper.sh.tpl",
     ),
-    "_windows_cc_wrapper_cmd_tpl": attr.label(
-        default = "//toolchain:cc_wrapper.cmd.tpl",
-    ),
     "_cc_wrapper_sh_tpl": attr.label(
         default = "//toolchain:cc_wrapper.sh.tpl",
     ),

@@ -32,6 +32,22 @@ load(
 def _fmt_flags(flags, toolchain_path_prefix):
     return [f.format(toolchain_path_prefix = toolchain_path_prefix) for f in flags]
 
+def _machine_arch(target_arch):
+    if target_arch == "x86_64":
+        return "X64"
+    elif target_arch == "aarch64":
+        return "ARM64"
+    else:
+        fail("Unsupported target architecture: {}".format(target_arch))
+
+def _clang_cl_libpath_arch(target_arch):
+    if target_arch == "x86_64":
+        return "x64"
+    elif target_arch == "aarch64":
+        return "arm64"
+    else:
+        fail("Unsupported target architecture: {}".format(target_arch))
+
 # Macro for calling cc_toolchain_config from @bazel_tools with setting the
 # right paths and flags for the tools.
 def cc_toolchain_config(
@@ -181,19 +197,44 @@ def cc_toolchain_config(
         "-D__TIME__=\"redacted\"",
     ]
 
+    sysroot_path = compiler_configuration["sysroot_path"]
     # Default compiler flags:
     compile_flags = [
         "--target=" + target_system_name,
-        # Security
-        "-U_FORTIFY_SOURCE",  # https://github.com/google/sanitizers/issues/247
-        "-fstack-protector",
-        "-fno-omit-frame-pointer",
         # Diagnostics
         "-fcolor-diagnostics",
-        "-Wall",
-        "-Wthread-safety",
-        "-Wself-assign",
     ]
+    if compiler == "clang-cl":
+        compile_flags.extend([
+            "/Wall",
+            "/MT",
+            "/Brepro",
+            "/DWIN32",
+            "/D_WIN32",
+            "/D_WINDOWS",
+            "/clang:-fdebug-prefix-map={}=__bazel_toolchain_llvm_repo__/".format(toolchain_path_prefix),
+        ])
+        if target_libc == "msvc":
+            compile_flags.extend([
+                "/clang-I{}/VC/Tools/MSVC/14.50.35717/include".format(sysroot_path),
+            ])
+        if target_os == "windows":
+            compile_flags.extend([
+                "/clang-I{}/Windows_Kits/10/Include/10.0.26100.0/um".format(sysroot_path),
+                "/clang-I{}/Windows_Kits/10/Include/10.0.26100.0/shared".format(sysroot_path),
+                "/clang-I{}/Windows_Kits/10/Include/10.0.26100.0/ucrt".format(sysroot_path),
+            ])
+    else:
+        compile_flags.extend([
+            # Security
+            "-U_FORTIFY_SOURCE",  # https://github.com/google/sanitizers/issues/247
+            "-fstack-protector",
+            "-fno-omit-frame-pointer",
+            # Diagnostics
+            "-Wall",
+            "-Wthread-safety",
+            "-Wself-assign",
+        ])
 
     dbg_compile_flags = ["-g", "-fstandalone-debug"]
 
@@ -244,6 +285,21 @@ def cc_toolchain_config(
     elif target_arch in ["wasm32", "wasm64"]:
         # lld is invoked as wasm-ld for WebAssembly targets.
         use_libtool = False
+    elif compiler == "clang-cl":
+        link_flags.extend([
+            "/MACHINE:{}".format(_machine_arch(target_arch)),
+        ])
+        libpath_arch = _clang_cl_libpath_arch(target_arch)
+        if target_os == "windows":
+            link_flags.extend([
+                "/LIBPATH:{}/Windows_Kits/10/Lib/10.0.26100.0/ucrt/{}".format(sysroot_path, libpath_arch),
+                "/LIBPATH:{}/Windows_Kits/10/Lib/10.0.26100.0/um/{}".format(sysroot_path, libpath_arch),
+            ])
+        if target_libc == "msvc":
+            link_flags.extend([
+                "/LIBPATH:{}/VC/Tools/MSVC/14.50.35717/lib/{}".format(sysroot_path, libpath_arch),
+            ])
+        use_libtool = False
     else:
         link_flags.extend([
             "-Wl,--build-id=md5",
@@ -257,10 +313,8 @@ def cc_toolchain_config(
     # output_file arg to it is None.
     if is_darwin_exec_and_target:
         archive_flags = ["-static"]
-    elif target_os == "windows" and target_arch == "x86_64":
-        archive_flags = ["/MACHINE:X64"]
-    elif target_os == "windows" and target_arch == "aarch64":
-        archive_flags = ["/MACHINE:ARM64"]
+    elif compiler == "clang-cl" and target_os == "windows":
+        archive_flags = ["/MACHINE:{}".format(_machine_arch(target_arch))]
     else:
         archive_flags = []
 
@@ -269,7 +323,6 @@ def cc_toolchain_config(
     # always link C++ libraries.
     cxx_standard = compiler_configuration["cxx_standard"]
     conly_flags = compiler_configuration["conly_flags"]
-    sysroot_path = compiler_configuration["sysroot_path"]
 
     is_xcompile = not (exec_os == target_os and exec_arch == target_arch)
 
@@ -354,6 +407,12 @@ def cc_toolchain_config(
         link_flags.extend([
             "-nostdlib",
         ])
+    elif compiler == "clang-cl" and target_libc == "msvc":
+        cxx_flags = [
+            "/std:" + cxx_standard,
+            "-fms-compatibility",
+            "-fms-extensions",
+        ]
     else:
         fail("Unknown value passed for stdlib: {stdlib}".format(stdlib = stdlib))
 
@@ -368,51 +427,6 @@ def cc_toolchain_config(
         cxx_flags.append("-fno-cxx-modules")
         cxx_flags.append("-Wno-module-import-in-extern-c")
 
-
-    # TODO: translate some Windows flag that were set above to have a configuration similar to UNIX
-    if target_os == "windows":
-        compiler_rt_link_flags = []
-        link_flags = [
-        ]
-        if target_arch == "x86_64":
-            link_flags.extend([
-                "/MACHINE:X64",
-                "/LIBPATH:{}splat/Windows_Kits/10/Lib/10.0.26100.0/ucrt/x64".format(sysroot_path),
-                "/LIBPATH:{}splat/Windows_Kits/10/Lib/10.0.26100.0/um/x64".format(sysroot_path),
-                "/LIBPATH:{}splat/VC/Tools/MSVC/14.50.35717/lib/x64".format(sysroot_path),
-            ])
-        if target_arch == "aarch64":
-            link_flags.extend([
-                "/MACHINE:ARM64",
-                "/LIBPATH:{}/Windows_Kits/10/Lib/10.0.26100.0/ucrt/arm64".format(sysroot_path),
-                "/LIBPATH:{}/Windows_Kits/10/Lib/10.0.26100.0/um/arm64".format(sysroot_path),
-                "/LIBPATH:{}/VC/Tools/MSVC/14.50.35717/lib/arm64".format(sysroot_path),
-            ])
-        # cxx_flags.extend([
-        cxx_flags = [
-            "/std:" + cxx_standard,
-            "-fms-compatibility",
-            "-fms-extensions",
-        # ])
-        ]
-        libunwind_link_flags = []
-        compile_flags.extend([
-            "/MT",
-            "/Brepro",
-            "/DWIN32",
-            "/D_WIN32",
-            "/D_WINDOWS",
-            "/clang-I{}/VC/Tools/MSVC/14.50.35717/include".format(sysroot_path),
-            "/clang-I{}/Windows_Kits/10/Include/10.0.26100.0/um".format(sysroot_path),
-            "/clang-I{}/Windows_Kits/10/Include/10.0.26100.0/shared".format(sysroot_path),
-            "/clang-I{}/Windows_Kits/10/Include/10.0.26100.0/ucrt".format(sysroot_path),
-            # Do not resolve our symlinked resource prefixes to real paths.
-            "-no-canonical-prefixes",
-            # Reproducibility
-            "-Wno-builtin-macro-redefined",
-            "/clang:-fdebug-prefix-map={}=__bazel_toolchain_llvm_repo__/".format(toolchain_path_prefix),
-        ])
-
     opt_link_flags = ["-Wl,--gc-sections"] if target_os == "linux" else []
 
     # Coverage flags:
@@ -426,10 +440,8 @@ def cc_toolchain_config(
     ## pass these to `create_cc_toolchain_config_info`.
 
     binary_ext = ""
-    script_ext = ".sh"
     if exec_os == "windows":
         binary_ext = ".exe"
-        script_ext = ".cmd"
 
     # The requirements here come from
     # https://cs.opensource.google/bazel/bazel/+/master:src/main/starlark/builtins_bzl/common/cc/cc_toolchain_provider_helper.bzl;l=75;drc=f0150efd1cca473640269caaf92b5a23c288089d
@@ -441,7 +453,7 @@ def cc_toolchain_config(
         "ar": tools_path_prefix + ("llvm-ar" if not use_libtool else "libtool") + binary_ext,
         "cpp": tools_path_prefix + "clang-cpp" + binary_ext,
         "dwp": tools_path_prefix + "llvm-dwp" + binary_ext,
-        "gcc": tools_path_prefix + "clang-cl" + binary_ext if exec_os == "windows" else wrapper_bin_prefix + "cc_wrapper" + script_ext,
+        "gcc": tools_path_prefix + "clang-cl" + binary_ext if exec_os == "windows" else wrapper_bin_prefix + "cc_wrapper.sh",
         "gcov": tools_path_prefix + "llvm-profdata" + binary_ext,
         "ld": tools_path_prefix + "lld-link" + binary_ext if exec_os == "windows" else tools_path_prefix + "ld.lld" + binary_ext,
         "llvm-lib": tools_path_prefix + "llvm-lib" + binary_ext,
@@ -451,7 +463,7 @@ def cc_toolchain_config(
         "objcopy": tools_path_prefix + "llvm-objcopy" + binary_ext,
         "objdump": tools_path_prefix + "llvm-objdump" + binary_ext,
         "strip": tools_path_prefix + "llvm-strip" + binary_ext,
-        "parse_headers": wrapper_bin_prefix + "cc_wrapper" + script_ext,
+        "parse_headers": wrapper_bin_prefix + "cc_wrapper.sh",
     }
 
     # Start-end group linker support:
@@ -510,7 +522,7 @@ def cc_toolchain_config(
     if compiler_configuration["extra_unfiltered_compile_flags"] != None:
         unfiltered_compile_flags.extend(_fmt_flags(compiler_configuration["extra_unfiltered_compile_flags"], toolchain_path_prefix))
 
-    if exec_os == "windows":
+    if target_os == "windows" and compiler == "clang-cl" and target_libc == "msvc":
         windows_cc_toolchain_config(
             name = name,
             cpu = target_cpu,
@@ -523,17 +535,13 @@ def cc_toolchain_config(
             abi_libc_version = abi_libc_version,
             # msvc_env_tmp = "%{clang_cl_env_tmp_arm64}", # TODO
             # msvc_env_path = "%{clang_cl_env_path_arm64}", # TODO
-            msvc_env_include = ";".join([
-                # "{}/VC/Tools/MSVC/14.50.35717/include".format(sysroot_path),
-                # "{}/Windows_Kits/10/Include/10.0.26100.0/um".format(sysroot_path),
-                # "{}/Windows_Kits/10/Include/10.0.26100.0/shared".format(sysroot_path),
-                # "{}/Windows_Kits/10/Include/10.0.26100.0/ucrt".format(sysroot_path),
-                # TODO: fix inclusion using relative path
-                "C:/Users/titouan.bion/Developer_windows/ultimate/sysroots/windows-aarch64/Windows_Kits/10/Include/10.0.26100.0/ucrt",
-                "C:/Users/titouan.bion/Developer_windows/ultimate/sysroots/windows-aarch64/Windows_Kits/10/Include/10.0.26100.0/shared",
-                "C:/Users/titouan.bion/Developer_windows/ultimate/sysroots/windows-aarch64/Windows_Kits/10/Include/10.0.26100.0/um",
-                "C:/Users/titouan.bion/Developer_windows/ultimate/sysroots/windows-aarch64/VC/Tools/MSVC/14.50.35717/include",
-            ]),
+            # TODO: these relative path are not working here, but I don't know how to resolve a path that would work for everything
+            # msvc_env_include = ";".join([
+            #     "{}/VC/Tools/MSVC/14.50.35717/include".format(sysroot_path),
+            #     "{}/Windows_Kits/10/Include/10.0.26100.0/um".format(sysroot_path),
+            #     "{}/Windows_Kits/10/Include/10.0.26100.0/shared".format(sysroot_path),
+            #     "{}/Windows_Kits/10/Include/10.0.26100.0/ucrt".format(sysroot_path),
+            # ]),
             # msvc_env_lib = "%{clang_cl_env_lib_arm64}", # TODO
             msvc_cl_path = tool_paths["gcc"],
             # msvc_ml_path = tool_paths["ml"], # TODO
@@ -542,12 +550,12 @@ def cc_toolchain_config(
             cxx_builtin_include_directories = cxx_builtin_include_directories,
             tool_paths = tool_paths,
             archiver_flags = archive_flags,
-            default_link_flags = link_flags + select({str(Label("@toolchains_llvm//toolchain/config:use_libunwind")): libunwind_link_flags, "//conditions:default": []}) +
-                         select({str(Label("@toolchains_llvm//toolchain/config:use_compiler_rt")): compiler_rt_link_flags, "//conditions:default": []}),
-            default_compile_flags = compile_flags,
+            default_link_flags = link_flags + select({str(Label("@toolchains_llvm//toolchain/config:use_compiler_rt")): compiler_rt_link_flags, "//conditions:default": []}),
+            default_compile_flags = compile_flags + unfiltered_compile_flags,
             dbg_mode_debug_flag = " ".join(dbg_compile_flags),
             fastbuild_mode_debug_flag = " ".join(fastbuild_compile_flags),
-            supports_parse_showincludes = False, # TODO: what would be the good way of setting this?
+            supports_parse_showincludes = False,
+
             # TODO: what to do with these?
             # opt_compile_flags = opt_compile_flags,
             # conly_flags = conly_flags,

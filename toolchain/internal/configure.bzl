@@ -238,13 +238,6 @@ def llvm_config_impl(rctx):
             "%{toolchain_path_prefix}": llvm_dist_path_prefix,
         },
     )
-    rctx.template(
-        "bin/cc_wrapper.cmd",
-         rctx.attr._windows_cc_wrapper_cmd_tpl,
-        {
-            "%{toolchain_path_prefix}": llvm_dist_path_prefix,
-        },
-    )
 
     if hasattr(rctx, "repo_metadata"):
         return rctx.repo_metadata(reproducible = True)
