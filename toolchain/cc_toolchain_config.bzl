@@ -286,11 +286,12 @@ def cc_toolchain_config(
         ])
         use_libtool = False
     else:
-        link_flags.extend([
-            "-Wl,--build-id=md5",
-            "-Wl,--hash-style=gnu",
-            "-Wl,-z,relro,-z,now",
-        ])
+        if target_os != "darwin":
+            link_flags.extend([
+                "-Wl,--build-id=md5",
+                "-Wl,--hash-style=gnu",
+                "-Wl,-z,relro,-z,now",
+            ])
         use_libtool = False
 
     # Pre-installed libtool on macOS has -static as default, but llvm-libtool-darwin needs it
@@ -380,9 +381,10 @@ def cc_toolchain_config(
             "-stdlib=libstdc++",
         ]
 
-        link_flags.extend([
-            "-l:libstdc++.a",
-        ])
+        if target_os != "darwin":
+            link_flags.extend([
+                "-l:libstdc++.a",
+            ])
     elif stdlib == "libc":
         cxx_flags = [
             "-std=" + cxx_standard,
