@@ -298,7 +298,7 @@ def cc_toolchain_config(
         # lld is invoked as wasm-ld for WebAssembly targets.
         use_libtool = False
     else:
-        if linker == "ld.lld":
+        if linker == "ld.lld" and target_os != "darwin":  # none of these flags are supported by `ld64.lld` linker nor by `lld-link` linker
             link_flags.extend([
                 "-Wl,--build-id=md5",
                 "-Wl,--hash-style=gnu",
