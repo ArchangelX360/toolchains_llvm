@@ -56,6 +56,7 @@ filegroup(
             "include/**/c++/**",
             "lib/clang/*/include/**",
         ],
+        allow_empty = True,
     ),
 )
 
